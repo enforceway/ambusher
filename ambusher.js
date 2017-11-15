@@ -1,21 +1,22 @@
 var OAMEvent = (function(){
+    function each(ary, fn){
+        var ret;
+        for(var i = 0, l = ary.length; i < l; i++){
+            var n = ary[i];
+            ret = fn.call(global,i,n);
+        }
+        return ret;
+    };
+    var _slice = Array.prototype.slice,
+        _shift = Array.prototype.shift,
+        _unshift = Array.prototype.unshift;
+
     var global = this, Event, _default = 'default';
-    Event = function(){
+    Event = (function(){
         var _listen,
             _remove,
-            _slice = Array.prototype.slice,
-            _shift = Array.prototype.shift,
-            _unshift = Array.prototype.unshift,
             namespaceCache = {},
-            find,
-            each = function(ary,fn){
-                var ret;
-                for(var i = 0, l = ary.length; i < l; i++){
-                    var n = ary[i];
-                    ret = fn.call(global,i,n);
-                }
-                return ret;
-            };
+            
             _listen = function(key,fn,cache){
                 // 初始化调用次数
                 if(!fn.ifTriggered && fn.ifTriggered != 0) {
@@ -119,20 +120,6 @@ var OAMEvent = (function(){
         return {
             create: _create,
         };
-    }();
+    })();
     return Event;
 })();
-/********* 先发布后订阅 *********/
-// Event.trigger('click',1);
-// Event.listen('click',function(a){
-//     console.log(a);   //1
-// });
-// /********* 使用命名空间 *********/
-// Event.create('namespace1').listen('click',function(a){
-//     console.log(a);   //1
-// })
-// Event.create('namespace1').trigger('click',1);
-// Event.create('namespace3').listen('click',function(a){
-//     console.log(a);   //2
-// })
-// Event.create('namespace3').trigger('click',2);
