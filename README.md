@@ -20,5 +20,3 @@ oamEventHub.listen("loadDocumentCount", function(data1, data2) {
 });
 oamEventHub.trigger("loadDocumentCount", {age: 10}, {name: "enforceway"});
 ```
-
-使用在了自己公司的实际项目中。
