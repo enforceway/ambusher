@@ -1,19 +1,76 @@
-class InstanceUID {
-	indexer: number;
+class IdGenerator {
+	private _index: number;
 	constructor() {
-		this.indexer = +new Date();
+		this._index = +new Date();
 	}
-	uid: Function = function(): number {
-		return this.indexer++;
+	uid() {
+		return this._index++;
 	}
 }
 
-class EventLodge {
+class CallbackFnLodge {
+
+	private _id: number;
+	private _fn: Function;
+	private _ifMultiCall: boolean;
+	private _thisArg: Object;
+	private _ifTriggered: any;
+
+	constructor(fnValue, ifMuticallValue, ifTriggered = 0, thisArg = window) {
+		this.fn = fnValue;
+		this.ifMultiCall = ifMuticallValue;
+		this.ifTriggered = ifTriggered;
+		this.thisArg = thisArg;
+	}
+
+	get id() {
+		return this._id;
+	}
+	set id(newId) {
+		this._id = newId;
+	}
+
+	get fn() {
+		return this._fn;
+	}
+	set fn(newFn) {
+		this._fn = newFn;
+	}
+
+	get ifMultiCall() {
+		return this._ifMultiCall;
+	}
+	set ifMultiCall(newValue) {
+		this._ifMultiCall = newValue;
+	}
+
+	get thisArg() {
+		return this._thisArg;
+	}
+	set thisArg(newValue) {
+		this._thisArg = newValue;
+	}
+
+	get ifTriggered() {
+		return this._ifTriggered;
+	}
+	set ifTriggered(newValue) {
+		this._ifTriggered = newValue;
+	}
+
+}
+
+
+class EventLodge extends IdGenerator {
 	private _id: number;
 	private cache: Object = {};
-	private offlineStack: Object = {};
+	private callbackCache: Object = {};
+	private _keyOfValue: string;
+	// private evtCache: Object = {};
 	constructor(evtId: number) {
+		super();
 		this._id = evtId;
+		this._keyOfValue = this.uid() + '';
 	}
 	get id() {
 		return this._id;
@@ -21,106 +78,147 @@ class EventLodge {
 	set id(evtId: number) {
 		this._id = evtId;
 	}
-	private _remove: Function = function(key: string, cache: Object, fn: Function) {
-		if(cache[key]) {
-			if(fn) {
-				for(var i = cache[key].length; i >= 0; i--) {
-					if(cache[key][i] === fn) {
-						cache[key].splice(i,1)
-					}
-				}
-			} else {
-				cache[key] = []
-			}
-		}
+
+	// public remove: Function = function(key, fn) {
+	// 	this._remove(key, fn);
+	// }
+
+	// private _remove: Function = function(key: string, cache: Object, fn: Function) {
+	// 	if(cache[key]) {
+	// 		if(fn) {
+	// 			for(var i = cache[key].length; i >= 0; i--) {
+	// 				if(cache[key][i] === fn) {
+	// 					cache[key].splice(i,1)
+	// 				}
+	// 			}
+	// 		} else {
+	// 			cache[key] = []
+	// 		}
+	// 	}
+	// }
+
+	private _promoteCallerCount: Function = function(key: string, values: any[]): void {
+		// this.cache[key].push(uid);
+		this.callbackCache[key][this._keyOfValue] = values;
+		// this.callbackCache[key].value = value;
 	}
 
-	private _call: Function = function(_self: Object, key: string, values: any[]) {
-		let stack = this.cache[key];
-		stack.forEach(function(itemFn) {
-			itemFn.ifTriggered = 1;
-			itemFn.apply(_self, values.concat(key));
+	private _listen: Function = function(key: any, fn: Function, ifMultiEvt = false): void {
+		let fnLodge: CallbackFnLodge = new CallbackFnLodge(fn, ifMultiEvt);
+		let uid = this.uid();
+		if(ifMultiEvt == false) {
+			this.cache[key].push(uid);
+			this.callbackCache[key][uid] = {
+				fnLodge: fnLodge,
+				evtName: key	
+			};
+		} else {
+			// uid = this.uid();
+			key.forEach((keyItm) => {
+				this.cache[keyItm].push(uid);
+				this.callbackCache[keyItm][uid] = {
+					fnLodge: fnLodge,
+					evtName: key.toString()
+				};
+			});
+		}
+	}
+	private _runCallback: Function = function(keys: any, values: any[]): void {
+		if(typeof(keys) == 'string') {
+			keys = [keys];	
+		}
+		let self = this;
+		let fnLodgeIds;
+		let fnLodge;
+		keys.forEach((key) => {
+			// 如果没有数值
+			if(!self.callbackCache[key][self._keyOfValue]) {
+				return;
+			}
+			let fnLodgeIds = self.cache[key];
+			let callbackArgs = [];
+			fnLodgeIds.forEach((fnId, index) => {
+				//= self.callbackCache[key][fnId];
+				for(let fnId in self.callbackCache[key]) {
+					if(fnId == self._keyOfValue) {
+						// 遇到回调数值保存的属性，则进入下次循环
+						continue;
+					}
+
+					if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
+						callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
+					} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > 0) {
+						self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, index, self) => {
+							callbackArgs[index] = self.callbackCache[keyName][self._keyOfValue];
+						});
+					} else {
+						console.warn("执行出现错误，无法构建回调参数.");
+					}
+					fnLodge = self.callbackCache[key][fnId]['fnLodge'];
+					fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);
+				}				
+			});
 		});
 	}
 
-	private _promoteCallerCount: Function = function(key: string, value: Function) {
-		this.offlineStack[key].triggerCount++;
-		this.offlineStack[key].value = value;
-	}
-
-	private _listen: Function = function(key: string | Array<string>, fn: Function) {
-		if(!fn.ifTriggered && fn.ifTriggered != 0) {
-			fn.ifTriggered = 0;
-		}
-
+	private _addListen: Function = function(key: string | Array<string>, fn: Function): boolean {
 		if(typeof(key) == 'string') {
-			this.cache[key].push(fn);
-		} else if(typeof(key) == 'object') {
-			fn.callbackSeq = [];
-			key.forEach((item) => {
-				fn.callbackSeq.push(item);
-				this.cache[item].push(fn);
-			});
-		}
-	}
-
-
-	private _loopTrigger: Function = function(key: string) {
-		if(this.offlineStack[key].value) {
-			let self = this;
-			this.cache[key].forEach(function(itemFn, index) {
-				if(itemFn.ifTriggered == 0) {
-					itemFn.apply(self, self.offlineStack[key].value.concat(key));
-					itemFn.ifTriggered = 1;
+			this._listen(key, fn, false);
+			return true;
+		} else if(Object.prototype.toString.call(key) == '[object Array]') {
+			let distinctKey = [], hash = {};
+			key.forEach(function(keyItem) {
+				if (!hash[keyItem]) {
+					distinctKey.push(keyItem);
 				}
 			});
-		}
-	}
-
-	private _ifFnExists: Function = function(key: string, fn: Function): boolean {
-		let fnStr = fn.toString();
-		for(let indexer = 0; indexer < this.cache[key].length; indexer ++) {
-			if(this.cache[key][indexer].toString() == fnStr) {
-				return true;
-			}
+			this._listen(distinctKey, fn, true);
+			return true;
 		}
 		return false;
 	}
 
-	public listen: Function = function(key: string, fn: Function): void {
+	private _initEvtCache: Function = function(key: string): void {
 		if(!this.cache[key]) {
 			this.cache[key] = [];
-			this.offlineStack[key] = [];
+			this.callbackCache[key] = {};
+			// this.evtNameCache[key]
 		}
-		if(this._ifFnExists(key, fn) == true) {
-			return;
-		}
-		this._listen(key, fn);
-		this._loopTrigger(key);
-
-
 	}
 
-	public listenArray: Function = function(keys: Array<string>, fn: Function): void {
-		keys.forEach((key: string) => {
-			if(!this.cache[key]) {
-				this.cache[key] = [];
-				this.offlineStack[key] = [];
-			}
-		});
+	public listen: Function = function(key: string | Array<string>, fn: Function): void {
+		// 初始化存储结构
+		this._initEvtCache(key);
+		// 保存回调函数
+		let ifAddSuccc = this._addListen(key, fn);
+		if(ifAddSuccc) {
+			// 检查热模式是否有需要执行的回调函数
+			this._runCallback(key);
+		}
+		
 	}
 
-	public trigger: Function = function(key: string, ...values: any[]) {
-		if(!this.cache[key]) {
-			this.cache[key] = [];
-			this.offlineStack[key] = [];
-		}
+	// public listenArray: Function = function(keys: Array<string>, fn: Function): void {
+	// 	keys.forEach((key: string) => {
+	// 		this._initEvtCache(key);
+	// 	});
+	// }
+
+	public trigger: Function = function(key: string, ...values: any[]): void {
+		this._initEvtCache(key);
 		this._promoteCallerCount(key, values);
-		this._call(this, key, values);
+		this._runCallback(key, values);
 	}
 
-	public remove: Function = function(key, fn) {
-		this._remove(key, fn);
+}
+
+class InstanceUID {
+	indexer: number;
+	constructor() {
+		this.indexer = +new Date();
+	}
+	uid: Function = function(): number {
+		return this.indexer++;
 	}
 }
 
