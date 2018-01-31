@@ -62,12 +62,12 @@ class CallbackFnLodge {
 
 
 class EventLodge extends IdGenerator {
-	private _id: number;
+	private _id: any;
 	private cache: Object = {};
 	private callbackCache: Object = {};
 	private _keyOfValue: string;
 	// private evtCache: Object = {};
-	constructor(evtId: number) {
+	constructor(evtId: any) {
 		super();
 		this._id = evtId;
 		this._keyOfValue = this.uid() + '';
@@ -75,7 +75,7 @@ class EventLodge extends IdGenerator {
 	get id() {
 		return this._id;
 	}
-	set id(evtId: number) {
+	set id(evtId: any) {
 		this._id = evtId;
 	}
 
@@ -222,17 +222,16 @@ class InstanceUID {
 	}
 }
 
-class Instanstializer extends InstanceUID {
+class Instanstializer {
 	constructor() {
-		super()
+		
 	}
 	private instanceLodge : Object = {};
 	public create: Function = function(namespace: string = "_default") {
-		let evtId: number = this.uid();
-		let newEvt = new EventLodge(evtId);
-		this.instanceLodge[evtId] = newEvt;
+		let newEvt = new EventLodge(namespace);
+		this.instanceLodge[namespace] = newEvt;
 		return newEvt;
 	}
 }
 
-export default new Instanstializer().create("oam-system");
+export default new Instanstializer().create("oaisys");
