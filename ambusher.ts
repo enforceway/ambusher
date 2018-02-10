@@ -7,59 +7,12 @@ class IdGenerator {
 		return this._index++;
 	}
 }
-
-class CallbackFnLodge {
-
-	private _id: number;
-	private _fn: Function;
-	private _ifMultiCall: boolean;
-	private _thisArg: Object;
-	private _ifTriggered: any;
-
-	constructor(fnValue, ifMuticallValue, ifTriggered = 0, thisArg = window) {
-		this.fn = fnValue;
-		this.ifMultiCall = ifMuticallValue;
-		this.ifTriggered = ifTriggered;
-		this.thisArg = thisArg;
-	}
-
-	get id() {
-		return this._id;
-	}
-	set id(newId) {
-		this._id = newId;
-	}
-
-	get fn() {
-		return this._fn;
-	}
-	set fn(newFn) {
-		this._fn = newFn;
-	}
-
-	get ifMultiCall() {
-		return this._ifMultiCall;
-	}
-	set ifMultiCall(newValue) {
-		this._ifMultiCall = newValue;
-	}
-
-	get thisArg() {
-		return this._thisArg;
-	}
-	set thisArg(newValue) {
-		this._thisArg = newValue;
-	}
-
-	get ifTriggered() {
-		return this._ifTriggered;
-	}
-	set ifTriggered(newValue) {
-		this._ifTriggered = newValue;
-	}
-
+interface CallbackFnLodge {
+	fn: Function;
+	ifMultiCall?: boolean;
+	thisArg?: Object;
+	ifTriggered?: any;
 }
-
 
 class EventLodge extends IdGenerator {
 	private _id: any;
@@ -79,23 +32,19 @@ class EventLodge extends IdGenerator {
 		this._id = evtId;
 	}
 
-	// public remove: Function = function(key, fn) {
-	// 	this._remove(key, fn);
-	// }
+	public remove: Function = function(key, handlerId) {
+		this._remove(key, handlerId);
+	}
 
-	// private _remove: Function = function(key: string, cache: Object, fn: Function) {
-	// 	if(cache[key]) {
-	// 		if(fn) {
-	// 			for(var i = cache[key].length; i >= 0; i--) {
-	// 				if(cache[key][i] === fn) {
-	// 					cache[key].splice(i,1)
-	// 				}
-	// 			}
-	// 		} else {
-	// 			cache[key] = []
-	// 		}
-	// 	}
-	// }
+	private _remove: Function = function(key: string, handlerId: any) {
+		if(!this.cache[key]) {
+			return;
+		}
+		if(this.cache[key].indexOf(handlerId)) {
+			this.cache[key].splice(this.cache[key].indexOf(handlerId), 1);
+			delete this.callbackCache[key][handlerId];
+		}
+	}
 
 	private _promoteCallerCount: Function = function(key: string, values: any[]): void {
 		// this.cache[key].push(uid);
@@ -103,8 +52,8 @@ class EventLodge extends IdGenerator {
 		// this.callbackCache[key].value = value;
 	}
 
-	private _listen: Function = function(key: any, fn: Function, ifMultiEvt = false): void {
-		let fnLodge: CallbackFnLodge = new CallbackFnLodge(fn, ifMultiEvt);
+	private _listen: Function = function(key: any, fn: Function, ifMultiEvt = false, thisArg: any): void {
+		let fnLodge: CallbackFnLodge = {fn: fn, ifMultiCall: ifMultiEvt, thisArg: thisArg};//new CallbackFnLodge(fn, ifMultiEvt);
 		let uid = this.uid();
 		if(ifMultiEvt == false) {
 			this.cache[key].push(uid);
@@ -161,10 +110,10 @@ class EventLodge extends IdGenerator {
 		});
 	}
 
-	private _addListen: Function = function(key: string | Array<string>, fn: Function): boolean {
+	private _addListen: Function = function(key: string | Array<string>, fn: Function, thisArg: any): boolean {
+		let handlerId = null;
 		if(typeof(key) == 'string') {
-			this._listen(key, fn, false);
-			return true;
+			handlerId = this._listen(key, fn, false, thisArg);
 		} else if(Object.prototype.toString.call(key) == '[object Array]') {
 			let distinctKey = [], hash = {};
 			key.forEach(function(keyItem) {
@@ -172,37 +121,38 @@ class EventLodge extends IdGenerator {
 					distinctKey.push(keyItem);
 				}
 			});
-			this._listen(distinctKey, fn, true);
-			return true;
+			handlerId = this._listen(distinctKey, fn, true, thisArg);
 		}
-		return false;
+		return handlerId;
 	}
 
-	private _initEvtCache: Function = function(key: string): void {
-		if(!this.cache[key]) {
-			this.cache[key] = [];
-			this.callbackCache[key] = {};
-			// this.evtNameCache[key]
+	private _initEvtCache: Function = function(keys: any): void {
+		if(typeof(keys) == 'string') {
+			keys = [keys];
 		}
+		keys.forEach((key) => {
+			if(!this.cache[key]) {
+					this.cache[key] = [];
+					this.callbackCache[key] = {};
+					// this.evtNameCache[key]
+				}
+			}
+		);
 	}
 
-	public listen: Function = function(key: string | Array<string>, fn: Function): void {
+	public listen: Function = function(key: string | Array<string>, fn: Function, thisArg?: Object): void {
+		if(!(typeof(key) == 'string' || Object.prototype.toString.call(key) == '[object Array]')) {
+			return null;
+		}
+		thisArg?'':(thisArg = window);
 		// 初始化存储结构
 		this._initEvtCache(key);
 		// 保存回调函数
-		let ifAddSuccc = this._addListen(key, fn);
-		if(ifAddSuccc) {
-			// 检查热模式是否有需要执行的回调函数
-			this._runCallback(key);
-		}
-		
+		let handlerId = this._addListen(key, fn, thisArg);
+		// 检查热模式是否有需要执行的回调函数
+		this._runCallback(key);
+		return handlerId;
 	}
-
-	// public listenArray: Function = function(keys: Array<string>, fn: Function): void {
-	// 	keys.forEach((key: string) => {
-	// 		this._initEvtCache(key);
-	// 	});
-	// }
 
 	public trigger: Function = function(key: string, ...values: any[]): void {
 		this._initEvtCache(key);
