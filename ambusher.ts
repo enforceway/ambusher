@@ -84,7 +84,7 @@ class EventLodge extends IdGenerator {
 				return;
 			}
 			let callbackArgs;
-			fnLodgeIds.forEach((fnId, index) => {
+			self.cache[key].forEach((fnId, index) => {
 				callbackArgs = [];
 				if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
 					callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
@@ -94,6 +94,7 @@ class EventLodge extends IdGenerator {
 					});
 				} else {
 					console.warn("执行出现错误，无法构建回调参数.");
+					return;
 				}
 				fnLodge = self.callbackCache[key][fnId]['fnLodge'];
 				fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);				
