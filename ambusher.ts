@@ -77,35 +77,26 @@ class EventLodge extends IdGenerator {
 			keys = [keys];	
 		}
 		let self = this;
-		let fnLodgeIds;
 		let fnLodge;
 		keys.forEach((key) => {
 			// 如果没有数值
 			if(!self.callbackCache[key][self._keyOfValue]) {
 				return;
 			}
-			let fnLodgeIds = self.cache[key];
-			let callbackArgs = [];
+			let callbackArgs;
 			fnLodgeIds.forEach((fnId, index) => {
-				//= self.callbackCache[key][fnId];
-				for(let fnId in self.callbackCache[key]) {
-					if(fnId == self._keyOfValue) {
-						// 遇到回调数值保存的属性，则进入下次循环
-						continue;
-					}
-
-					if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
-						callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
-					} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > 0) {
-						self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, index, self) => {
-							callbackArgs[index] = self.callbackCache[keyName][self._keyOfValue];
-						});
-					} else {
-						console.warn("执行出现错误，无法构建回调参数.");
-					}
-					fnLodge = self.callbackCache[key][fnId]['fnLodge'];
-					fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);
-				}				
+				callbackArgs = [];
+				if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
+					callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
+				} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > 0) {
+					self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, index) => {
+						callbackArgs[index] = self.callbackCache[keyName][self._keyOfValue];
+					});
+				} else {
+					console.warn("执行出现错误，无法构建回调参数.");
+				}
+				fnLodge = self.callbackCache[key][fnId]['fnLodge'];
+				fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);				
 			});
 		});
 	}
@@ -132,12 +123,10 @@ class EventLodge extends IdGenerator {
 		}
 		keys.forEach((key) => {
 			if(!this.cache[key]) {
-					this.cache[key] = [];
-					this.callbackCache[key] = {};
-					// this.evtNameCache[key]
-				}
+				this.cache[key] = [];
+				this.callbackCache[key] = {};
 			}
-		);
+		});
 	}
 
 	public listen: Function = function(key: string | Array<string>, fn: Function, thisArg?: Object): void {
