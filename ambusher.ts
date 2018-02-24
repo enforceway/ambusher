@@ -87,7 +87,7 @@ class EventLodge extends IdGenerator {
 			self.cache[key].forEach((fnId, index) => {
 				callbackArgs = [];
 				if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
-					callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
+					callbackArgs.concat(self.callbackCache[key][self._keyOfValue]);
 				} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > 0) {
 					self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, index) => {
 						callbackArgs[index] = self.callbackCache[keyName][self._keyOfValue];
@@ -100,6 +100,25 @@ class EventLodge extends IdGenerator {
 				fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);				
 			});
 		});
+	}
+	
+	private _runCallbackAtListen: Function = function(keys: any, fn: Function, thisArg: any): void {
+		if(typeof(keys) == 'string') {
+			keys = [keys];	
+		}
+		let self = this;
+		let callbackArgs = [];
+		keys.forEach((key) => {
+			// 如果没有数值
+			if(!self.callbackCache[key][self._keyOfValue]) {
+				return;
+			}
+			callbackArgs.concat(self.callbackCache[key][self._keyOfValue]);
+		});
+		if(callbackArgs.length == 0) {
+			return;
+		}
+		fn.apply(thisArg, callbackArgs);
 	}
 
 	private _addListen: Function = function(key: string | Array<string>, fn: Function, thisArg: any): boolean {
@@ -140,7 +159,7 @@ class EventLodge extends IdGenerator {
 		// 保存回调函数
 		let handlerId = this._addListen(key, fn, thisArg);
 		// 检查热模式是否有需要执行的回调函数
-		this._runCallback(key);
+		this._runCallbackAtListen(key, fn, thisArg);
 		return handlerId;
 	}
 
