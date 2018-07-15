@@ -52,62 +52,126 @@ class EventLodge extends IdGenerator {
 		// this.callbackCache[key].value = value;
 	}
 
+
+	private _ifExistListen: Function = function(key: any, fn: Function, targetKey?: any): boolean {
+		if(typeof(key) == 'string') {
+			key = [key];
+		}
+		let self = this;
+		let exists = false;
+
+		let fullName = key.join(',');
+		if(targetKey) {
+			key = key.filter(function(tmpKeyItem) {
+				return tmpKeyItem == targetKey;
+			});
+		}
+		key.forEach(function(keyItem) {
+			for(var tmpKey in self.callbackCache[keyItem]) {
+				if(tmpKey == self._keyOfValue) {
+					continue;
+				}
+				let fnEq = self.callbackCache[keyItem][tmpKey].fnLodge.fn.toString() == fn.toString();
+				if(exists == false && (self.callbackCache[keyItem][tmpKey].evtName == fullName) && fnEq) {
+					exists = true;
+				}
+			}
+		});
+		return exists;
+	}
+
+
 	private _listen: Function = function(key: any, fn: Function, ifMultiEvt = false, thisArg: any): void {
 		let fnLodge: CallbackFnLodge = {fn: fn, ifMultiCall: ifMultiEvt, thisArg: thisArg};//new CallbackFnLodge(fn, ifMultiEvt);
 		let uid = this.uid();
+		// 去除已存在
+		let tmpResult = null;
 		if(ifMultiEvt == false) {
-			this.cache[key].push(uid);
-			this.callbackCache[key][uid] = {
-				fnLodge: fnLodge,
-				evtName: key	
-			};
+			tmpResult = this._ifExistsListen(key. fn);
+			if(!tmpResult) {
+				this.cache[key].push(uid);
+				this.callbackCache[key][uid] = {
+					fnLodge: fnLodge,
+					evtName: key
+				};
+			}
 		} else {
 			// uid = this.uid();
 			key.forEach((keyItm) => {
-				this.cache[keyItm].push(uid);
-				this.callbackCache[keyItm][uid] = {
-					fnLodge: fnLodge,
-					evtName: key.toString()
-				};
+				tmpResult = this._ifExistsListen(key, fn, keyItm);
+				if(!tmpResult) {
+					this.cache[keyItm].push(uid);
+					this.callbackCache[keyItm][uid] = {
+						fnLodge: fnLodge,
+						evtName: key.toString()
+					};
+				}
 			});
 		}
+		if(tmpResult) {
+			return null;
+		}
+		return uid;
 	}
+
+	private _runCallbackAtListen: Function = function(keys: any, callback: Function, thisArg: any): void {
+		let callbackArgs = [];
+		let self = this;
+		if(typeof(keys) == 'string' && this.callbackCache[keys][this._keyOfValue]) {
+			callbackArgs = callbackArgs.concat(this.callbackCache[keys][this._keyOfValue]);
+		} else if(Object.prototype.toString.call(keys) == '[object Array]') {
+			let noneInititated = false;
+			keys.forEach((key, index) => {
+				if(!self.callbackCache[key][self._keyOfValue]) {
+					return;
+				}
+				callbackArgs[index] = self.callbackCache[key][self._keyOfValue];
+			});
+		}
+		if(callbackArgs.length == 0) {
+			// 如果事件都没有数值，则退出
+			return;
+		}
+		try {
+			callback.apply(thisArg, callbackArgs);
+		} catch(err) {
+			console.log(err);
+		}
+	}
+
 	private _runCallback: Function = function(keys: any, values: any[]): void {
 		if(typeof(keys) == 'string') {
 			keys = [keys];	
 		}
 		let self = this;
-		let fnLodgeIds;
 		let fnLodge;
-		keys.forEach((key) => {
-			// 如果没有数值
-			if(!self.callbackCache[key][self._keyOfValue]) {
-				return;
-			}
-			let fnLodgeIds = self.cache[key];
-			let callbackArgs = [];
-			fnLodgeIds.forEach((fnId, index) => {
-				//= self.callbackCache[key][fnId];
-				for(let fnId in self.callbackCache[key]) {
-					if(fnId == self._keyOfValue) {
-						// 遇到回调数值保存的属性，则进入下次循环
-						continue;
-					}
-
+		try {
+			keys.forEach((key) => {
+				// 如果没有数值
+				if(!self.callbackCache[key][self._keyOfValue]) {
+					return;
+				}
+				let callbackArgs = [];
+				let cachArray = webix.copy(self.cache[key]);
+				cachArray.forEach((fnId, index) => {
+					callbackArgs = [];
 					if(key.toString() == self.callbackCache[key][fnId]['evtName']) {
-						callbackArgs.push(self.callbackCache[key][self._keyOfValue]);
-					} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > 0) {
-						self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, index, self) => {
-							callbackArgs[index] = self.callbackCache[keyName][self._keyOfValue];
+						callbackArgs = callbackArgs.concat(self.callbackCache[key][self._keyOfValue]);
+					} else if(self.callbackCache[key][fnId]['evtName'].indexOf(key.toString()) > -1) {
+						// 多事件调用
+						self.callbackCache[key][fnId]['evtName'].split(',').forEach((keyName, indexx) => {
+							callbackArgs[indexx] = self.callbackCache[keyName][self._keyOfValue];
 						});
 					} else {
-						console.warn("执行出现错误，无法构建回调参数.");
+						console.warn('执行出现错误,无法构建回调参数');
 					}
 					fnLodge = self.callbackCache[key][fnId]['fnLodge'];
 					fnLodge.fn.apply(fnLodge.thisArg, callbackArgs);
-				}				
+				});
 			});
-		});
+		} catch(err) {
+			console.log(err);
+		}
 	}
 
 	private _addListen: Function = function(key: string | Array<string>, fn: Function, thisArg: any): boolean {
@@ -133,11 +197,10 @@ class EventLodge extends IdGenerator {
 		keys.forEach((key) => {
 			if(!this.cache[key]) {
 					this.cache[key] = [];
-					this.callbackCache[key] = {};
-					// this.evtNameCache[key]
-				}
+				this.callbackCache[key] = {};
+				// this.evtNameCache[key]
 			}
-		);
+		});
 	}
 
 	public listen: Function = function(key: string | Array<string>, fn: Function, thisArg?: Object): void {
@@ -150,8 +213,15 @@ class EventLodge extends IdGenerator {
 		// 保存回调函数
 		let handlerId = this._addListen(key, fn, thisArg);
 		// 检查热模式是否有需要执行的回调函数
-		this._runCallback(key);
+		if(handlerId) {
+			this._runCallbackAtListen(key, fn, thisArg);
+		}
 		return handlerId;
+	}
+
+	public clearAll: Function = function() {
+		this.cache = {};
+		this.callbackCache = {};
 	}
 
 	public trigger: Function = function(key: string, ...values: any[]): void {
@@ -178,10 +248,13 @@ class Instanstializer {
 	}
 	private instanceLodge : Object = {};
 	public create: Function = function(namespace: string = "_default") {
+		if(this.instanceLodge[namespace]) {
+			return this.instanceLodge[namespace];
+		}
 		let newEvt = new EventLodge(namespace);
 		this.instanceLodge[namespace] = newEvt;
 		return newEvt;
 	}
 }
-
+// export new Instanstializer();
 export default new Instanstializer().create("oaisys");
